@@ -140,17 +140,28 @@ def est_loss():
             out[split]=sum(losses)/len(losses)
     model.train(); return out
 
+# ───────── training loop ─────────
 t0 = time.time()
-for step in range(max_iters+1):
+for step in range(max_iters + 1):
     if step % eval_int == 0:
-        l = est_loss(); mins = (time.time()-t0)/60
+        l = est_loss()
+        mins = (time.time() - t0) / 60
         print(f"step {step:5d} | train {l['train']:.3f}"
               f" | val {l['val']:.3f} | {mins:.1f} min")
 
-    xb,yb = get_batch("train")
+        # ── NEW: quick sample after every eval_int steps ──
+        with torch.no_grad():
+            prompt = torch.tensor([[stoi[" "]]], device=device)
+            out = sample(model, prompt, 200,          # 200 new chars
+                         temp=temperature, top_k=top_k)
+            print("»", decode(out[0].tolist()), "\n")
+        # ────────────────────────────────────────────────
+
+    xb, yb = get_batch("train")
     opt.zero_grad(set_to_none=True)
-    loss = F.cross_entropy(model(xb).view(-1,vocab_size), yb.view(-1))
-    loss.backward(); torch.nn.utils.clip_grad_norm_(model.parameters(),1.0)
+    loss = F.cross_entropy(model(xb).view(-1, vocab_size), yb.view(-1))
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     opt.step()
 
 # ─────────────── generate ───────────────
